@@ -142,4 +142,3 @@ Output formatting lives in `format.cpp`. The bar charts use the Unicode eighth-b
 ## License
 
 Add a license of your choice here (MIT is a common choice for small tools).
-# dirscope

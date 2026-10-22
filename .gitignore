@@ -1,0 +1,81 @@
+# ── Build output ─────────────────────────────────────────────
+build/
+build-*/
+cmake-build-*/
+out/
+bin/
+obj/
+
+# ── CMake generated files (for in-source builds) ─────────────
+CMakeCache.txt
+CMakeFiles/
+CMakeScripts/
+CMakeUserPresets.json
+cmake_install.cmake
+install_manifest.txt
+CTestTestfile.cmake
+Testing/
+_deps/
+*.ninja
+.ninja_deps
+.ninja_log
+compile_commands.json
+
+# ── Compiled objects and libraries ───────────────────────────
+*.o
+*.obj
+*.lo
+*.slo
+*.gch
+*.pch
+*.a
+*.lib
+*.la
+*.lai
+*.so
+*.so.*
+*.dylib
+*.dll
+
+# ── Executables ──────────────────────────────────────────────
+*.exe
+*.out
+*.app
+
+# ── Debug and profiling files ────────────────────────────────
+*.pdb
+*.ilk
+*.dSYM/
+core
+core.*
+vgcore.*
+gmon.out
+*.gcda
+*.gcno
+*.gcov
+perf.data*
+
+# ── Package managers ─────────────────────────────────────────
+vcpkg_installed/
+conan/
+CMakeUserPresets.json
+
+# ── Editors and IDEs ─────────────────────────────────────────
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea/
+.vs/
+*.swp
+*.swo
+*~
+.cache/
+.clangd/
+
+# ── OS files ─────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+*:Zone.Identifier
