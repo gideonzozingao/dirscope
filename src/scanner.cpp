@@ -1,5 +1,7 @@
 #include "scanner.hpp"
 
+#include "platform.hpp"
+
 #include <algorithm>
 #include <cctype>
 #include <queue>
@@ -11,13 +13,8 @@ namespace {
 
 using BucketMap = std::unordered_map<std::string, Bucket>;
 
-bool is_hidden(const fs::path& p) {
-    const std::string name = p.filename().string();
-    return name.size() > 1 && name.front() == '.';
-}
-
 std::string extension_key(const fs::path& p) {
-    std::string ext = p.extension().string();
+    std::string ext = platform::to_utf8(p.extension());
     if (ext.empty()) return "(none)";
     std::transform(ext.begin(), ext.end(), ext.begin(),
                    [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
@@ -62,13 +59,16 @@ ScanResult scan(const fs::path& root, const ScanOptions& opts) {
         const fs::directory_entry& entry = *it;
         const bool at_top = it.depth() == 0;
 
-        if (!opts.include_hidden && is_hidden(entry.path())) {
+        if (!opts.include_hidden && platform::is_hidden(entry.path())) {
             if (entry.is_directory(ec)) it.disable_recursion_pending();
-        } else if (entry.is_symlink(ec)) {
+        } else if (entry.is_symlink(ec) ||
+                   (entry.is_directory(ec) && platform::is_directory_link(entry.path()))) {
+            // A link, junction or symlinked folder: never descend into it.
+            it.disable_recursion_pending();
             // Skipped on purpose: avoids double counting and symlink loops.
         } else if (entry.is_directory(ec)) {
             ++result.dir_count;
-            if (at_top) bucket_for(top_level, entry.path().filename().string()).is_dir = true;
+            if (at_top) bucket_for(top_level, platform::to_utf8(entry.path().filename())).is_dir = true;
         } else if (entry.is_regular_file(ec)) {
             const std::uintmax_t size = entry.file_size(ec);
             if (ec) {
@@ -82,7 +82,7 @@ ScanResult scan(const fs::path& root, const ScanOptions& opts) {
                 ++ext.count;
 
                 const fs::path first = *entry.path().lexically_relative(root).begin();
-                Bucket& child = bucket_for(top_level, first.string());
+                Bucket& child = bucket_for(top_level, platform::to_utf8(first));
                 child.bytes += size;
                 ++child.count;
 

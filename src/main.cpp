@@ -1,7 +1,6 @@
 #include "format.hpp"
 #include "scanner.hpp"
-
-#include <unistd.h>
+#include "platform.hpp"
 
 #include <algorithm>
 #include <charconv>
@@ -10,7 +9,9 @@
 #include <cstdlib>
 #include <iostream>
 #include <optional>
+#include <string>
 #include <string_view>
+#include <vector>
 
 #ifndef DIRSCOPE_VERSION
 #define DIRSCOPE_VERSION "dev"
@@ -19,6 +20,7 @@
 namespace {
 
 using namespace dirscope;
+using platform::to_utf8;
 
 struct Args {
     fs::path root = ".";
@@ -42,12 +44,13 @@ void print_usage() {
                  "  -h, --help      show this help and exit\n";
 }
 
-std::optional<Args> parse_args(int argc, char* argv[]) {
+std::optional<Args> parse_args(const std::vector<std::string>& argv) {
+    const std::size_t argc = argv.size();
     Args args;
-    args.color = isatty(STDOUT_FILENO) && std::getenv("NO_COLOR") == nullptr;
+    args.color = platform::stdout_is_terminal() && std::getenv("NO_COLOR") == nullptr;
     bool have_path = false;
 
-    for (int i = 1; i < argc; ++i) {
+    for (std::size_t i = 0; i < argc; ++i) {
         const std::string_view a = argv[i];
 
         if (a == "-h" || a == "--help") {
@@ -73,7 +76,7 @@ std::optional<Args> parse_args(int argc, char* argv[]) {
             std::cerr << "dirscope: unknown option '" << a << "'\n";
             return std::nullopt;
         } else if (!have_path) {
-            args.root = a;
+            args.root = platform::from_utf8(a);
             have_path = true;
         } else {
             std::cerr << "dirscope: only one PATH may be given\n";
@@ -99,7 +102,7 @@ void print_buckets(const std::vector<Bucket>& buckets, std::uintmax_t total, std
 
     std::size_t name_w = 6;
     for (std::size_t i = 0; i < shown; ++i) {
-        name_w = std::max(name_w, buckets[i].name.size() + (buckets[i].is_dir ? 1 : 0));
+        name_w = std::max(name_w, display_width(buckets[i].name) + (buckets[i].is_dir ? 1 : 0));
     }
     name_w = std::min<std::size_t>(name_w, 28);
 
@@ -123,8 +126,8 @@ void print_buckets(const std::vector<Bucket>& buckets, std::uintmax_t total, std
 
 }  // namespace
 
-int main(int argc, char* argv[]) {
-    const auto args = parse_args(argc, argv);
+int run(const std::vector<std::string>& argv) {
+    const auto args = parse_args(argv);
     if (!args) {
         std::cerr << "Try 'dirscope --help' for usage.\n";
         return 2;
@@ -142,7 +145,7 @@ int main(int argc, char* argv[]) {
 
     std::error_code ec;
     if (!fs::is_directory(args->root, ec)) {
-        std::cerr << "dirscope: not a directory: " << args->root.string() << '\n';
+        std::cerr << "dirscope: not a directory: " << to_utf8(args->root) << '\n';
         return 1;
     }
     fs::path root = fs::canonical(args->root, ec);
@@ -162,7 +165,7 @@ int main(int argc, char* argv[]) {
     char time_buf[32];
     std::snprintf(time_buf, sizeof time_buf, "%.2fs", secs);
 
-    std::cout << st.bold(st.magenta("dirscope")) << "  " << root.string() << '\n'
+    std::cout << st.bold(st.magenta("dirscope")) << "  " << to_utf8(root) << '\n'
               << "  " << st.bold(human_size(r.total_bytes)) << " in "
               << with_commas(r.file_count) << " files, " << with_commas(r.dir_count)
               << " directories" << st.dim("  (scanned in " + std::string(time_buf) + ")") << '\n';
@@ -183,7 +186,7 @@ int main(int argc, char* argv[]) {
         const FileEntry& f = r.largest_files[i];
         std::cout << "  " << st.dim(align_right(std::to_string(i + 1) + ".", 3)) << ' '
                   << st.yellow(align_right(human_size(f.size), 10)) << "  "
-                  << f.path.lexically_relative(root).string() << '\n';
+                  << to_utf8(f.path.lexically_relative(root)) << '\n';
     }
 
     if (r.skipped > 0 || r.incomplete) {
@@ -198,3 +201,19 @@ int main(int argc, char* argv[]) {
     }
     return 0;
 }
+
+// Windows passes arguments as UTF-16 through wmain; convert them to UTF-8 so
+// folder names like "Café" or "Документы" survive. Linux arguments already are UTF-8.
+#ifdef _WIN32
+int wmain(int argc, wchar_t* argv[]) {
+    platform::setup_console();
+    std::vector<std::string> args;
+    for (int i = 1; i < argc; ++i) args.push_back(to_utf8(fs::path(argv[i])));
+    return run(args);
+}
+#else
+int main(int argc, char* argv[]) {
+    platform::setup_console();
+    return run(std::vector<std::string>(argv + 1, argv + argc));
+}
+#endif

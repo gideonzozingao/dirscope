@@ -2,7 +2,7 @@
 
 A fast command-line tool that shows where your disk space goes. Point it at a folder and it gives you a breakdown by subfolder and by file type, plus a list of the largest files, all drawn as colored bar charts right in the terminal.
 
-Written in modern C++20 using only the standard library.
+Runs natively on **Windows and Linux**. Written in modern C++20 using only the standard library, plus a small platform layer for Windows.
 
 ```
 dirscope  /usr/share
@@ -45,7 +45,7 @@ Largest files
 
 - A C++20 compiler: GCC 11+ or Clang 14+
 - CMake 3.20 or newer
-- Linux, WSL, or macOS (uses `isatty` from `<unistd.h>`)
+- Linux, WSL, macOS or Windows
 
 On Ubuntu or WSL:
 
@@ -73,6 +73,30 @@ sudo cmake --install build
 
 This copies the binary to `/usr/local/bin`.
 
+### Building for Windows
+
+**From WSL (cross-compile):**
+
+```bash
+sudo apt install mingw-w64
+make windows                     # → build-windows/dirscope.exe
+cp build-windows/dirscope.exe /mnt/c/Users/<you>/
+```
+
+The `.exe` is statically linked, so it runs on any Windows 10/11 PC without extra DLLs.
+
+**With Visual Studio 2022** (Desktop development with C++ workload), in a *Developer PowerShell for VS*:
+
+```powershell
+cmake -S . -B build
+cmake --build build --config Release
+.\build\Release\dirscope.exe C:\Users\<you>
+```
+
+Every push to `main` also builds `dirscope.exe` on GitHub Actions; download it from the run's **Artifacts**.
+
+On Windows, dirscope handles Unicode folder and file names, skips files marked Hidden or System (unless `--all` is given), and never walks into junctions such as `Application Data`, which would count the same files twice.
+
 ## Usage
 
 ```
@@ -96,6 +120,7 @@ dirscope                     # scan the current folder
 dirscope ~ -n 5              # top 5 entries per section for your home folder
 dirscope . --all             # include .git, .cache and other hidden folders
 dirscope /var/log > usage.txt   # save a plain-text report (color is disabled automatically)
+dirscope.exe C:\Users\Gideon\Videos -n 5   # on Windows
 ```
 
 On WSL you can also scan Windows folders through `/mnt/c`, for example `dirscope /mnt/c/Users/<you>/Downloads`. This works but is noticeably slower than scanning the Linux filesystem.
@@ -113,9 +138,13 @@ On WSL you can also scan Windows folders through `/mnt/c`, for example `dirscope
 ```
 dirscope/
 ├── CMakeLists.txt
+├── Makefile
 ├── README.md
+├── cmake/mingw-w64.cmake  # toolchain for building dirscope.exe from Linux
+├── windows/           # manifest (long paths, UTF-8) embedded into the .exe
 ├── include/
 │   ├── format.hpp     # output helpers: colors, sizes, bars, alignment
+│   ├── platform.hpp   # Windows vs Linux differences
 │   └── scanner.hpp    # scan options, results, and the scan() function
 └── src/
     ├── format.cpp

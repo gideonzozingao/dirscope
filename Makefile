@@ -18,7 +18,7 @@ BIN     := $(BUILD_DIR)/$(PROJECT)
 SOURCES := $(wildcard src/*.cpp include/*.hpp)
 
 .DEFAULT_GOAL := help
-.PHONY: help build release debug asan run install uninstall clean distclean rebuild format tidy
+.PHONY: help build release debug asan run install uninstall clean distclean rebuild format tidy test windows
 
 help: ## Show this help
 	@echo "Usage: make <task> [VAR=value]"
@@ -51,6 +51,9 @@ asan: ## Debug build with Address/UB sanitizers in build-asan/
 run: build ## Build, then run with ARGS (e.g. make run ARGS="~ -n 5")
 	./$(BIN) $(ARGS)
 
+test: build ## Build, then run the CTest suite
+	ctest --test-dir $(BUILD_DIR) --output-on-failure
+
 install: ## Install to PREFIX (run 'make build' first, then 'sudo make install')
 	@test -x $(BIN) || { echo "No binary at $(BIN). Run 'make build' first."; exit 1; }
 	cmake --install $(BUILD_DIR) --prefix $(PREFIX)
@@ -64,11 +67,17 @@ clean: ## Remove compiled files, keep CMake configuration
 	@test -d $(BUILD_DIR) && cmake --build $(BUILD_DIR) --target clean || true
 
 distclean: ## Delete all build folders
-	rm -rf build build-debug build-asan
+	rm -rf build build-debug build-asan build-windows
 
 rebuild: ## Delete everything and build from scratch
 	@$(MAKE) --no-print-directory distclean
 	@$(MAKE) --no-print-directory build
+
+windows: ## Cross-compile dirscope.exe for Windows (needs: sudo apt install mingw-w64)
+	@command -v x86_64-w64-mingw32-g++-posix >/dev/null || { echo "Install MinGW-w64: sudo apt install mingw-w64"; exit 1; }
+	cmake -S . -B build-windows -G "$(GENERATOR)" -DCMAKE_TOOLCHAIN_FILE=cmake/mingw-w64.cmake -DCMAKE_BUILD_TYPE=Release
+	cmake --build build-windows -j $(JOBS)
+	@echo "Built: build-windows/dirscope.exe"
 
 format: ## Format sources with clang-format (uses .clang-format)
 	@command -v clang-format >/dev/null || { echo "Install clang-format: sudo apt install clang-format"; exit 1; }

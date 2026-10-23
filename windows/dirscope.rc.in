@@ -1,0 +1,2 @@
+// Resource script for MinGW builds: embeds the manifest (resource type 24).
+1 24 "@DIRSCOPE_MANIFEST@"

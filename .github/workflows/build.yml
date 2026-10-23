@@ -1,0 +1,114 @@
+# Linux (GCC + Clang), native Windows (MSVC), and a MinGW cross-compile from Linux.
+name: Build and test
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    strategy:
+      # Report results for every combination, even if one fails.
+      fail-fast: false
+
+      # Runs 4 jobs: {gcc, clang} x {Release, Debug}
+      matrix:
+        compiler:
+          - { cc: gcc,   cxx: g++ }
+          - { cc: clang, cxx: clang++ }
+        build_type: [Release, Debug]
+
+    name: ${{ matrix.compiler.cc }} / ${{ matrix.build_type }}
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Ninja
+      run: sudo apt-get update && sudo apt-get install -y ninja-build
+
+    - name: Show tool versions
+      run: |
+        ${{ matrix.compiler.cxx }} --version
+        cmake --version
+        ninja --version
+
+    - name: Configure CMake
+      run: >
+        cmake -S ${{ github.workspace }} -B ${{ github.workspace }}/build -G Ninja
+        -DCMAKE_CXX_COMPILER=${{ matrix.compiler.cxx }}
+        -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+
+    - name: Build
+      run: cmake --build ${{ github.workspace }}/build -j "$(nproc)"
+
+    - name: Test
+      working-directory: ${{ github.workspace }}/build
+      run: ctest --output-on-failure
+
+    - name: Demo run
+      # Shows real output in the job log.
+      run: ./build/dirscope /usr/include -n 5 --no-color
+
+  windows:
+    name: windows / MSVC
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Configure CMake
+      run: cmake -S . -B build
+
+    - name: Build
+      run: cmake --build build --config Release --parallel
+
+    - name: Test
+      working-directory: build
+      run: ctest -C Release --output-on-failure
+
+    - name: Smoke test with real files
+      shell: pwsh
+      run: |
+        $ErrorActionPreference = 'Stop'
+        [Console]::OutputEncoding = [Text.Encoding]::UTF8
+        $exe  = Resolve-Path 'build\Release\dirscope.exe'
+        $root = Join-Path $env:RUNNER_TEMP 'dirscope-test'
+        New-Item -ItemType Directory -Force -Path "$root\Videos", "$root\Été 2024" | Out-Null
+        [IO.File]::WriteAllBytes("$root\Videos\clip.mp4", (New-Object byte[] 500000))
+        [IO.File]::WriteAllBytes("$root\Été 2024\plage.jpg", (New-Object byte[] 200000))
+
+        $out = & $exe $root --no-color | Out-String
+        Write-Output $out
+        if ($out -notmatch 'clip\.mp4')  { throw 'largest file not listed' }
+        if ($out -notmatch 'Été 2024')   { throw 'non-ASCII folder name not printed correctly' }
+        Write-Output 'Windows smoke test passed.'
+
+    - name: Upload dirscope.exe
+      uses: actions/upload-artifact@v4
+      with:
+        name: dirscope-windows-x64
+        path: build/Release/dirscope.exe
+
+  windows-cross:
+    name: windows / MinGW cross-compile
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install MinGW-w64 and Wine
+      run: sudo apt-get update && sudo apt-get install -y mingw-w64 ninja-build wine64
+
+    - name: Build dirscope.exe
+      run: make windows
+
+    - name: Test under Wine
+      working-directory: build-windows
+      env:
+        WINEDEBUG: -all
+        LANG: C.UTF-8
+      run: ctest --output-on-failure

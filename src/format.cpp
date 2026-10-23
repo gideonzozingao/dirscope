@@ -5,15 +5,12 @@
 #include <cstdio>
 
 namespace dirscope {
-namespace {
 
-// Counts UTF-8 code points, so "…" and accented names align correctly.
+// Counts UTF-8 code points, so "…" and non-English names align correctly.
 std::size_t display_width(std::string_view s) {
     return static_cast<std::size_t>(
         std::count_if(s.begin(), s.end(), [](unsigned char c) { return (c & 0xC0) != 0x80; }));
 }
-
-}  // namespace
 
 std::string Style::wrap(std::string_view s, std::string_view code) const {
     if (!enabled_) return std::string(s);

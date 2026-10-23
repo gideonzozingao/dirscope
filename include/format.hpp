@@ -24,6 +24,7 @@ private:
     bool enabled_;
 };
 
+std::size_t display_width(std::string_view text);        // UTF-8 characters, not bytes
 std::string human_size(std::uintmax_t bytes);          // 1536 -> "1.5 KiB"
 std::string with_commas(std::uintmax_t n);             // 1234567 -> "1,234,567"
 std::string bar(double fraction, int width);           // Unicode block bar
